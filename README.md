@@ -1,204 +1,282 @@
-# Frequency-Regularization Framework
-# 频率视角下的正则化机制研究
+# Frequency-Perspective-Regularization
 
-## 项目概述
+**A visual analysis framework to understand how Regularization (L2, Dropout) affects the learning order of high/low frequencies in DNNs.**
 
-本项目研究不同正则化方法（L2、Dropout、Early Stopping）如何通过改变神经网络对不同频率成分的学习速度与顺序来影响泛化性能。
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-1.9+-orange.svg)](https://pytorch.org/)
+
+## 📖 项目概述
+
+本项目从**频率视角**研究正则化机制，通过可视化和量化分析揭示：
+- **L2 正则化**如何通过抑制高频学习来改善泛化
+- **Dropout**对频率学习顺序的影响
+- 正则化在不同任务（干净数据 vs 噪声数据）上的权衡
 
 **核心创新点：**
-- ⭐ **FRC 指标**：提出 Frequency Regularization Coefficient (FRC) 作为新的频率复杂度指标
-- ⭐ **RFF 框架**：提出 Regularization-as-Frequency-Filter (RFF) 统一框架
-- 提出 Frequency Learning Curve (FLC) 作为正则化效果的量化指标
-- 从频率视角统一解释不同正则化机制
-- 验证 FRC 与泛化性能的关系
+- ⭐ **径向频谱分析工具**：可视化权重和特征图的频率分布
+- ⭐ **SSR 指标**：Spectral Suppression Ratio，量化高频抑制程度
+- ⭐ **三个关键实验**：从合成数据到真实数据，系统验证频率视角
 
-## 项目结构
+## 🎯 核心发现
 
-```
-FrequencyRegularization/
-├── data/                    # 数据生成和加载
-│   ├── toy_data.py         # 1D 合成数据生成
-│   └── image_data.py       # 图像数据（MNIST/CIFAR）
-├── models/                 # 模型定义
-│   ├── mlp.py             # MLP for toy experiments
-│   └── cnn.py             # CNN for image experiments
-├── frequency/              # 频率分析工具
-│   ├── fft_utils.py       # FFT 和频带分解
-│   ├── frc.py             # ⭐ FRC 指标计算（核心创新）
-│   └── frequency_filter_framework.py # ⭐ RFF 框架（核心创新）
-├── experiments/            # 实验脚本
-│   ├── exp1_toy_baseline.py      # 实验1: 验证频率偏置
-│   ├── exp2_toy_regularization.py # 实验2: 正则化对比
-│   └── exp3_frc_analysis.py      # ⭐ 实验3: FRC 与泛化关系（核心创新）
-├── theory/                # 理论文档
-│   ├── frc_definition.md         # ⭐ FRC 指标定义
-│   └── rff_framework.md          # ⭐ RFF 框架理论
-├── utils/                  # 工具函数
-│   ├── training.py        # 训练循环
-│   ├── metrics.py        # 复杂度指标（sharpness, spectral norm）
-│   └── visualization.py   # 绘图工具
-├── results/               # 实验结果
-│   ├── figures/           # 论文图表
-│   └── data/              # 数值结果（CSV）
-├── configs/               # 实验配置
-│   └── default.yaml       # 默认超参数
-└── README.md              # 详细说明
+### Finding 1: L2 Regularization acts as a Low-Pass Filter
+L2 正则化通过抑制高频成分的学习，使模型优先学习低频信号。这在合成数据实验中清晰可见：模型先学会 `sin(5x)`，再学会 `sin(20x)`，而 `sin(50x)` 可能永远学不会。
 
-```
+### Finding 2: Dropout introduces high-frequency noise
+Dropout 在训练时引入随机噪声，这可能导致模型学习到更多高频细节，但在测试时这些细节可能不存在，从而防止过拟合。
 
-## 快速开始
+### Finding 3: Regularization improves robustness to high-frequency noise
+虽然强正则化可能在干净数据上准确率略低，但在高频噪声数据上表现更稳定，证明了正则化通过抑制高频学习间接实现了抗噪。
+
+## 🚀 快速开始
 
 ### 1. 环境设置
 
 ```bash
 cd FrequencyRegularization
+
+# 方法1：安装所有依赖（推荐）
 pip install -r requirements.txt
+
+# 方法2：如果遇到问题，可以单独安装
+pip install torch torchvision numpy matplotlib pandas tqdm scipy imageio
 ```
 
-或者手动安装：
-```bash
-pip install torch torchvision numpy matplotlib pandas tqdm scipy
-```
+**注意**：如果使用 conda 虚拟环境，请确保已激活环境后再安装依赖。
 
-### 2. 运行第一个实验（验证频率偏置）
+### 2. 运行实验
 
-**方法1：使用快速启动脚本**
-```bash
-python run_exp1.py
-```
+#### 实验A：合成数据拟合（最直观的原理展示）
 
-**方法2：直接运行实验脚本**
 ```bash
-cd experiments
-python exp1_toy_baseline.py
+python main.py --experiment a --epochs 200 --l2_reg 1e-3
 ```
 
 **预期输出：**
-- `results/figures/flc_toy_baseline.png` - Frequency Learning Curve（应该看到低频先上升）
-- `results/figures/fit_snapshots.png` - 训练过程快照（展示模型如何逐步拟合）
-- `results/data/exp1_results.csv` - 数值结果（每 epoch 的 EV 值）
+- `results/figures/exp_a_fitting.gif` - 拟合过程动图（展示模型如何逐步学习不同频率）
+- `results/figures/exp_a_frequency_curves.png` - 频率学习曲线对比
 
 **预期现象：**
-- 低频 (k=1) 的 Explained Variance 应该比高频 (k=10) 更快达到 1.0
-- 这证明神经网络确实先学低频、后学高频
+- Baseline：模型先学会低频 (k=5)，再学会中频 (k=20)，最后才学会高频 (k=50)
+- L2 Regularization：可能永远学不会高频 (k=50)
 
-### 3. 运行正则化对比实验（核心实验）
+#### 实验B：真实数据的频谱演变（进阶）
 
 ```bash
-cd experiments
-python exp2_toy_regularization.py
+python main.py --experiment b --epochs 50 --l2_reg 1e-3 --dropout 0.5
 ```
 
 **预期输出：**
-- `results/figures/flc_low_regularization.png` - 低频学习曲线对比
-- `results/figures/flc_high_regularization.png` - 高频学习曲线对比
-- `results/figures/auc_comparison.png` - AUC 对比柱状图
-- `results/data/exp2_regularization_comparison.csv` - 定量对比数据
+- `results/figures/exp_b_spectrum_evolution.png` - 权重频谱演变热力图
+- `results/figures/exp_b_ssr_comparison.png` - SSR 指标对比
 
 **预期现象：**
-- 正则化（L2/Dropout/EarlyStop）应该**延缓高频学习**（高频 EV 上升更慢）
-- 但**对低频影响较小**（低频 EV 仍然快速上升）
-- 这证明正则化通过"抑制高频学习"来改善泛化
+- 强 L2 正则化的模型，其卷积核非常"平滑"（高频能量极低）
+- SSR > 0 表示正则化抑制了高频
 
-## 核心概念
+#### 实验C：高频噪声鲁棒性（应用价值）
 
-### Frequency Learning Curve (FLC)
+```bash
+python main.py --experiment c
+```
 
-FLC 定义为：对于每个频率带 $f$，在训练 epoch $t$ 上计算该频带上预测与真实的 explained variance：
+**注意：** 需要先运行实验B训练模型。
 
-$$EV_f(t) = 1 - \frac{\|y_f - \hat{y}_{t,f}\|^2}{\|y_f\|^2}$$
+**预期输出：**
+- `results/figures/exp_c_robustness.png` - 鲁棒性曲线（准确率 vs 噪声水平）
 
-### 频率学习速度指标
+**预期现象：**
+- 强正则化的模型在噪声数据上准确率下降得更慢
 
-- $s_f$: epoch 数直到 $EV_f(t)$ 超过阈值（如 0.8）
-- AUC: $EV_f(t)$ 曲线下的面积
+#### 运行所有实验
 
-## 实验计划
+```bash
+python main.py --experiment all --epochs 200
+```
 
-1. **实验1**: 验证频率偏置（toy, baseline）
-2. **实验2**: 正则化对比（toy, 4种正则化）
-3. **实验3**: ⭐ FRC 与泛化关系（核心创新实验）
-   - 计算不同正则化配置下的 FRC
-   - 验证 FRC 与 Test Loss 的相关性
-   - 证明 FRC 作为泛化预测指标的有效性
+## 📁 项目结构
 
-## 预期结果
+```
+FrequencyRegularization/
+├── data/                    # 数据加载与预处理
+│   ├── toy_data.py         # 1D 合成数据生成
+│   └── filtered_data.py    # 低通/高通过滤数据集
+├── models/                 # 模型定义
+│   ├── mlp.py             # MLP for toy experiments
+│   ├── cnn.py             # Simple CNN
+│   └── resnet.py          # ResNet-18
+├── utils/
+│   ├── frequency.py       # [核心] 频率分析工具（径向频谱、SSR等）
+│   └── visualization.py   # 画图工具
+├── experiments/           # 实验脚本
+│   ├── exp_a_synthetic.py      # 实验A：合成数据拟合
+│   ├── exp_b_spectrum_evolution.py  # 实验B：频谱演变
+│   └── exp_c_robustness.py     # 实验C：噪声鲁棒性
+├── main.py                # 统一入口
+├── requirements.txt       # 依赖
+└── README.md             # 本文档
+```
 
-- 清晰的 FLC 曲线显示低频先学、高频后学
-- 正则化延缓高频学习，改善泛化
-- 定量指标（AUC, $s_f$）支持结论
-- 复杂度代理（sharpness, spectral norm）提供机制解释
+## 🔬 核心工具
 
-## 时间表（3周计划）
+### 径向频谱分析
 
-### Week 1: 核心实验（必须完成）
-- **Day 1-2**: 运行实验1，验证频率偏置现象
-- **Day 3-4**: 运行实验2，完成正则化对比
-- **Day 5-7**: 分析结果，撰写 Methods 和 Results 部分
+```python
+from utils.frequency import get_radial_spectrum
 
-### Week 2: 扩展实验（可选但推荐）
-- **Day 8-10**: 实验3（噪声敏感性）
-- **Day 11-14**: 实验4（合成图像）或实验5（MNIST）
+# 分析图像或特征图的径向频谱
+spectrum, frequencies = get_radial_spectrum(img_tensor)
+# spectrum: 1D 数组，从低频到高频的能量分布
+# frequencies: 对应的频率值
+```
 
-### Week 3: 完善与写作
-- **Day 15-18**: 实验6（机制验证），完善所有图表
-- **Day 19-21**: 撰写完整论文（9页），整理代码和结果
+### SSR 指标
 
-**注意**：如果时间紧张，可以只完成实验1-2，这已经足够支撑一篇高质量的课程论文。
+```python
+from utils.frequency import compute_ssr
 
-## 论文结构（9页）
+# 计算 Spectral Suppression Ratio
+ssr, energy_before, energy_after = compute_ssr(
+    spectrum_before,  # 训练前的频谱
+    spectrum_after,   # 训练后的频谱
+    high_freq_threshold=0.5  # 高频阈值
+)
+# SSR > 0: 正则化抑制了高频
+# SSR < 0: 正则化引入了高频
+```
 
-1. Introduction (1页)
-2. Related Work (0.5页)
-3. Method: Frequency Learning Curve (1.5页)
-4. Experiments: Toy + Regularization (2页)
-5. Experiments: Real Data (1.5页)
-6. Analysis: Mechanism (1页)
-7. Conclusion (0.5页)
-8. References + Appendix (1页)
+### 过滤数据集
 
-## 常见问题
+```python
+from data.filtered_data import get_cifar10_filtered_datasets
 
-### Q1: 运行实验1时没有看到明显的频率偏置？
-**A**: 检查以下几点：
-- 确保训练足够 epoch（至少 100-150）
-- 检查模型容量（width=64 应该足够）
-- 尝试增加高频幅度（high_amp=0.5 → 0.8）
+# 获取低通/高通数据集
+datasets = get_cifar10_filtered_datasets(sigma=2.0)
+train_lowpass = datasets['train_lowpass']  # 高斯模糊（低频）
+train_highpass = datasets['train_highpass']  # 边缘（高频）
+```
 
-### Q2: 正则化对比实验没有明显差异？
+## 📊 实验结果示例
+
+### 实验A：合成数据拟合
+
+![Fitting Process](results/figures/exp_a_fitting.gif)
+
+**观察：** 模型先学会大波浪（低频），再学会小抖动（高频）
+
+### 实验B：频谱演变
+
+![Spectrum Evolution](results/figures/exp_b_spectrum_evolution.png)
+
+**观察：** L2 正则化的模型，权重频谱中高频能量明显更低
+
+### 实验C：噪声鲁棒性
+
+![Robustness](results/figures/exp_c_robustness.png)
+
+**观察：** 正则化模型在噪声数据上表现更稳定
+
+## 🎓 理论背景
+
+### Spectral Bias
+神经网络在训练时存在**频率偏置（Spectral Bias）**：模型倾向于先学习低频成分，后学习高频成分。这是因为：
+- 低频函数在参数空间中更"平滑"
+- 梯度下降更容易优化低频目标
+
+### Regularization as Frequency Filter
+正则化可以理解为**频率滤波器**：
+- **L2 正则化**：低通滤波器，抑制高频学习
+- **Dropout**：引入高频噪声，防止过拟合到高频细节
+
+### SSR 指标
+**Spectral Suppression Ratio (SSR)** 量化了正则化对高频的抑制程度：
+
+$$SSR = \frac{E_{high}^{before} - E_{high}^{after}}{E_{high}^{before}}$$
+
+- SSR > 0：正则化抑制了高频
+- SSR < 0：正则化引入了高频
+- SSR ≈ 0：无明显影响
+
+## 📝 论文贡献点（Contribution）
+
+1. **Systematic Spectral Analysis**: 系统性量化分析不同正则化方法对频率学习顺序的影响
+2. **Visualization Framework**: 提出可视化框架，追踪训练过程中权重频谱的演变
+3. **SSR Metric**: 提出 Spectral Suppression Ratio 指标，量化正则化的"低通滤波"能力
+4. **Frequency-based Interpretability**: 从频率视角解释正则化如何通过抑制高频改善泛化
+5. **Robustness Analysis**: 揭示正则化在干净数据与噪声数据上的权衡机制
+
+## 🔧 高级用法
+
+### 自定义实验
+
+```python
+from utils.frequency import get_radial_spectrum, compute_ssr
+from models.resnet import ResNet18
+
+# 训练模型
+model = ResNet18(num_classes=10, dropout=0.5)
+# ... 训练代码 ...
+
+# 分析第一层卷积核的频谱
+first_conv_weight = model.conv1.weight.data
+spectrum, _ = get_radial_spectrum(first_conv_weight)
+
+# 计算 SSR（需要训练前后的频谱）
+ssr, _, _ = compute_ssr(spectrum_before, spectrum_after)
+```
+
+### 分析特征图
+
+```python
+# 在训练过程中提取特征图
+model.eval()
+with torch.no_grad():
+    features = model.conv1(images)  # 特征图
+    spectrum, _ = get_radial_spectrum(features[0])  # 分析第一个样本
+```
+
+## 🐛 常见问题
+
+### Q1: 运行实验A时没有看到明显的频率偏置？
 **A**: 
-- 增加正则化强度（L2: 1e-4 → 1e-3）
-- 增加 Dropout rate（0.3 → 0.5）
-- 确保有足够的训练噪声（noise=0.05）
+- 确保训练足够 epoch（至少 200）
+- 检查模型容量（width=128 应该足够）
+- 尝试调整高频幅度
 
-### Q3: 代码运行出错？
+### Q2: 实验B训练时间太长？
 **A**: 
-- 检查 Python 版本（需要 3.7+）
-- 确保安装了所有依赖：`pip install -r requirements.txt`
-- 检查路径是否正确（需要在项目根目录运行）
+- 可以减少 epochs（如 20-30）
+- 使用 GPU 加速
+- 减小 batch size（但可能影响结果）
 
-### Q4: 如何扩展到图像数据？
-**A**: 参考 `experiments/exp4_image_synthetic.py`（需要实现）或 `exp5_real_data.py`。核心思路：
-- 对图像做 2D FFT
-- 按径向频率 bins 分组
-- 计算每个 bin 的 explained variance
+### Q3: 实验C提示模型不存在？
+**A**: 
+- 需要先运行实验B训练模型
+- 或者修改代码使用预训练模型
 
-## 代码结构说明
+### Q4: 如何扩展到其他数据集？
+**A**: 
+- 修改 `data/filtered_data.py` 中的数据加载逻辑
+- 调整模型输入尺寸（在 `models/` 中）
 
-- `models/mlp.py`: 简单的 MLP 模型
-- `data/toy_data.py`: 1D 合成数据生成（sin 函数）
-- `frequency/fft_utils.py`: FFT 和频率分解工具
-- `utils/visualization.py`: 绘图工具
-- `experiments/exp*.py`: 各个实验脚本
+## 📚 参考文献
 
-## 下一步
+- [Frequency Principle: Fourier Analysis Sheds Light on Deep Neural Networks](https://arxiv.org/abs/1901.06523)
+- [On the Spectral Bias of Neural Networks](https://arxiv.org/abs/1806.08734)
+- [Implicit Regularization in Deep Learning](https://arxiv.org/abs/1811.10181)
 
-1. **立即运行实验1**，验证频率偏置现象
-2. **运行实验2**，获得核心结果（正则化对比）
-3. **分析结果**，开始撰写论文 Methods 和 Results 部分
-4. （可选）扩展实验3-6，丰富论文内容
+## 📄 许可证
 
-## 联系方式
+MIT License
 
-如有问题，请查看各实验脚本的注释或检查代码中的 print 语句输出。
+## 👥 贡献
 
+欢迎提交 Issue 和 Pull Request！
+
+## 📧 联系方式
+
+如有问题或建议，请提交 Issue。
+
+---
+
+**⭐ 如果这个项目对你有帮助，请给个 Star！**
